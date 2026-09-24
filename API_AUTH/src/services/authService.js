@@ -72,7 +72,7 @@ export async function getCurrentUser() {
 }
 
 export async function signup(username, email, password) {
-    const response = await fetch('http://192.168.1.15:3000/api/signup', {
+    const response = await fetch(`${BASE_URL}/users/add`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -86,5 +86,6 @@ export async function signup(username, email, password) {
         throw new Error(data.message || 'Signup failed');
     }
 
-    return data;
+    // DummyJSON /users/add doesn't return a token, so we mock it to prevent crashes
+    return { ...data, token: 'mock-signup-token' };
 }

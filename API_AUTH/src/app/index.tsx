@@ -28,9 +28,11 @@ export default function ProfileScreen() {
         } else {
           router.replace('/login');
         }
-      } catch (err) {
-        // Delete the token and return to login if the stored token is rejected
-        await deleteToken();
+      } catch (err: any) {
+        // Delete the token and return to login only if the stored token is rejected (401)
+        if (err.message === '401_UNAUTHORIZED') {
+          try { await deleteToken(); } catch (e) {}
+        }
         router.replace('/login');
       } finally {
         setLoading(false);
@@ -54,14 +56,19 @@ export default function ProfileScreen() {
           text: "Log Out", 
           style: "destructive",
           onPress: async () => {
-            // 1. Call deleteToken()
-            await deleteToken();
-            // 2. Set profile to null
-            setProfile(null);
-            // 3. Clear any error message
-            setError('');
-            // 4. Return the interface to the login form
-            router.replace('/login');
+            try {
+              // 1. Call deleteToken()
+              await deleteToken();
+            } catch (err) {
+              console.error(err);
+            } finally {
+              // 2. Set profile to null
+              setProfile(null);
+              // 3. Clear any error message
+              setError('');
+              // 4. Return the interface to the login form
+              router.replace('/login');
+            }
           }
         }
       ]
