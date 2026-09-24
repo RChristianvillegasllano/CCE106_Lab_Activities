@@ -1,93 +1,113 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, FlatList, Image, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, Image, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { authService } from '../services/authService';
+import { getCurrentUser } from '../services/authService';
+import { getToken, deleteToken } from '../storage/tokenStorage';
 
-const { width } = Dimensions.get('window');
-const COLUMN_WIDTH = width / 2 - 24;
-
-const MOCK_PRODUCTS = [
-  { id: '1', name: 'Vintage Leather Jacket', price: '$120', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80', brand: 'Unknown' },
-  { id: '2', name: 'Washed Denim Jeans', price: '$45', image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=500&q=80', brand: 'Levi\'s' },
-  { id: '3', name: 'Oversized Graphic Tee', price: '$25', image: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=500&q=80', brand: 'Band Merch' },
-  { id: '4', name: 'Chunky Sneakers', price: '$80', image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500&q=80', brand: 'Nike' },
-  { id: '5', name: 'Corduroy Overshirt', price: '$35', image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=500&q=80', brand: 'Polo' },
-  { id: '6', name: 'Silver Chain Necklace', price: '$40', image: 'https://images.unsplash.com/photo-1599643478524-fb524b067a90?w=500&q=80', brand: 'Handmade' },
-];
-
-export default function HomeScreen() {
+export default function ProfileScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [error, setError] = useState('');
 
+  // Task 4: Session restore requirement
   useEffect(() => {
-    checkAuth();
+    const restoreSession = async () => {
+      try {
+        setLoading(true);
+        // Read the token from SecureStore inside useEffect
+        const token = await getToken();
+        
+        if (token) {
+          // If a token exists, call getCurrentUser()
+          const userProfile = await getCurrentUser();
+          // Show the authenticated profile when the request succeeds
+          setProfile(userProfile);
+        } else {
+          router.replace('/login');
+        }
+      } catch (err) {
+        // Delete the token and return to login if the stored token is rejected
+        await deleteToken();
+        router.replace('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    restoreSession();
   }, []);
 
-  const checkAuth = async () => {
-    const isAuth = await authService.checkAuth();
-    if (!isAuth) {
-      router.replace('/login');
-    } else {
-      setLoading(false);
-    }
+  // Task 6: Implement logout (with confirmation)
+  const handleLogout = () => {
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to log out?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        { 
+          text: "Log Out", 
+          style: "destructive",
+          onPress: async () => {
+            // 1. Call deleteToken()
+            await deleteToken();
+            // 2. Set profile to null
+            setProfile(null);
+            // 3. Clear any error message
+            setError('');
+            // 4. Return the interface to the login form
+            router.replace('/login');
+          }
+        }
+      ]
+    );
   };
 
-  const handleLogout = async () => {
-    await authService.logout();
-    router.replace('/login');
-  };
-
-  const renderItem = ({ item }: { item: typeof MOCK_PRODUCTS[0] }) => (
-    <TouchableOpacity style={styles.productCard} activeOpacity={0.8}>
-      <Image source={{ uri: item.image }} style={styles.productImage} />
-      <View style={styles.productInfo}>
-        <Text style={styles.brandText}>{item.brand}</Text>
-        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.productPrice}>{item.price}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-
+  // Show a loading indicator while the session check is running
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, styles.center]}>
         <ActivityIndicator color="#fff" size="large" />
       </View>
     );
   }
 
+  if (!profile) return null;
+
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>BLACK SHADE</Text>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Feather name="search" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton} onPress={handleLogout}>
-            <Feather name="log-out" size={24} color="#fff" />
-          </TouchableOpacity>
+        <Text style={styles.headerTitle}>Secure Profile</Text>
+        <TouchableOpacity style={styles.iconButton} onPress={handleLogout}>
+          <Feather name="log-out" size={24} color="#ff4444" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.profileCard}>
+        {/* User image or ID */}
+        {profile.image ? (
+          <Image source={{ uri: profile.image }} style={styles.avatar} />
+        ) : (
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>{profile.id}</Text>
+          </View>
+        )}
+        
+        <View style={styles.infoContainer}>
+          {/* First and last name */}
+          <Text style={styles.name}>{profile.firstName} {profile.lastName}</Text>
+          {/* Username */}
+          <Text style={styles.username}>@{profile.username}</Text>
+          {/* Email address */}
+          <Text style={styles.email}>{profile.email}</Text>
         </View>
       </View>
 
-      <View style={styles.categories}>
-        <Text style={[styles.category, styles.activeCategory]}>ALL</Text>
-        <Text style={styles.category}>MENS</Text>
-        <Text style={styles.category}>WOMENS</Text>
-        <Text style={styles.category}>ACCESSORIES</Text>
-      </View>
-
-      <FlatList
-        data={MOCK_PRODUCTS}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
     </SafeAreaView>
   );
 }
@@ -96,6 +116,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a0a',
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -106,68 +130,58 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: 'bold',
     color: '#fff',
-    letterSpacing: 2,
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    gap: 16,
   },
   iconButton: {
-    padding: 4,
+    padding: 8,
   },
-  categories: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 24,
-    gap: 24,
-  },
-  category: {
-    color: '#666',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
-  activeCategory: {
-    color: '#fff',
-  },
-  listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 100,
-  },
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  productCard: {
-    width: COLUMN_WIDTH,
-  },
-  productImage: {
-    width: '100%',
-    height: COLUMN_WIDTH * 1.3,
-    borderRadius: 8,
+  profileCard: {
     backgroundColor: '#1a1a1a',
-    marginBottom: 12,
+    margin: 20,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
   },
-  productInfo: {
-    gap: 4,
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 16,
+    backgroundColor: '#333',
   },
-  brandText: {
-    color: '#888',
-    fontSize: 12,
-    fontWeight: '500',
-    textTransform: 'uppercase',
+  avatarPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 16,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  productName: {
+  avatarText: {
+    fontSize: 32,
     color: '#fff',
-    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  infoContainer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  username: {
+    fontSize: 16,
+    color: '#888',
     fontWeight: '600',
   },
-  productPrice: {
-    color: '#fff',
+  email: {
     fontSize: 14,
-    fontWeight: '700',
-    marginTop: 2,
-  }
+    color: '#bbb',
+  },
 });

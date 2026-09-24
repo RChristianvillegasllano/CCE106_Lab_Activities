@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, View, Text, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { authService } from '../services/authService';
+import { signup } from '../services/authService';
+import { saveToken } from '../storage/tokenStorage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Logo } from '../components/Logo';
@@ -18,10 +19,11 @@ export default function SignupScreen() {
     setLoading(true);
     setError('');
     try {
-      const res = await authService.signup(username, email, password);
-      if (res.success) {
-        router.replace('/');
+      const data = await signup(username, email, password);
+      if (data.token || data.accessToken) {
+        await saveToken(data.token || data.accessToken);
       }
+      router.replace('/');
     } catch (err: any) {
       setError(err.message || 'Signup failed');
     } finally {

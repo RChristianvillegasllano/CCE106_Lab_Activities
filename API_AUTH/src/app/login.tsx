@@ -1,41 +1,51 @@
 import React, { useState } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, View, Text, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { authService } from '../services/authService';
+import { loginUser } from '../services/authService';
+import { saveToken } from '../storage/tokenStorage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Logo } from '../components/Logo';
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('emilys');
+  const [password, setPassword] = useState('emilyspass');
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
 
   const handleLogin = async () => {
-    setLoading(true);
+    // 1. Clear any earlier error and set loading to true.
     setError('');
+    setLoading(true);
+
     try {
-      const res = await authService.login(username, password);
-      if (res.success) {
-        router.replace('/');
-      }
+      // 2. Call loginUser with the values from the form.
+      const data = await loginUser(username, password);
+      
+      // 3. Securely save data.accessToken.
+      await saveToken(data.accessToken || data.token);
+      
+      // 4. Request the protected profile or set the returned user data.
+      setProfile(data);
+      
+      router.replace('/');
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      // 5. Catch errors and show a user-friendly message.
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
+      // 6. Set loading to false in a finally block.
       setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Feather name="arrow-left" size={24} color="#fff" />
-      </TouchableOpacity>
-
       <View style={styles.header}>
         <Logo scale={0.5} />
+        <Text style={styles.taskHeading}>Secure Profile</Text>
       </View>
 
       <View style={styles.form}>
@@ -57,10 +67,13 @@ export default function LoginScreen() {
             style={styles.input}
             placeholder="Enter your Password"
             placeholderTextColor="#888"
-            secureTextEntry
+            secureTextEntry={!showPassword}
             value={password}
             onChangeText={setPassword}
           />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
+            <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="#888" />
+          </TouchableOpacity>
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -106,6 +119,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
     marginTop: -80,
+  },
+  taskHeading: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginTop: 20,
   },
   form: {
     gap: 16,

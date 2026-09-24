@@ -1,83 +1,90 @@
-import { tokenStorage } from '../storage/tokenStorage';
+import { getToken, deleteToken } from '../storage/tokenStorage';
+import { router } from 'expo-router';
 
-export const authService = {
-    async login(username, password) {
+const BASE_URL = 'https://dummyjson.com';
+
+export async function authenticatedFetch(url, options = {}) {
+  const token = await getToken();
+  
+  const headers = {
+    ...options.headers,
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    await deleteToken();
+    router.replace('/login');
+    throw new Error('401_UNAUTHORIZED');
+  }
+
+  return response;
+}
+export async function loginUser(username, password) {
+    const response = await fetch(`${BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            username,
+            password,
+            expiresInMins: 30,
+        }),
+    });
+
+    // TODO 1 If response.ok is false, throw a clear Error.
+    if (!response.ok) {
+        let errorData;
         try {
-            const response = await fetch('http://192.168.1.15:3000/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ username, password }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                await tokenStorage.saveToken(data.accessToken || data.token);
-                return { success: true, token: data.accessToken || data.token };
-            } else {
-                throw new Error(data.message || 'Invalid credentials');
-            }
-        } catch (error) {
-            throw error;
+            errorData = await response.json();
+        } catch (e) {
+            errorData = { message: 'Login failed' };
         }
-    },
-
-    async signup(username, email, password) {
-        try {
-            const response = await fetch('http://192.168.1.15:3000/api/signup', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ username, email, password }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                if (data.token) {
-                    await tokenStorage.saveToken(data.token);
-                }
-                return { success: true, token: data.token };
-            } else {
-                throw new Error(data.message || 'Signup failed');
-            }
-        } catch (error) {
-            throw error;
-        }
-    },
-
-    async logout() {
-        return new Promise((resolve) => {
-            setTimeout(async () => {
-                await tokenStorage.removeToken();
-                resolve({ success: true });
-            }, 500);
-        });
-    },
-
-    async fetchProtectedData(endpoint) {
-        const token = await tokenStorage.getToken();
-        
-        if (!token) {
-            throw new Error('No access token available');
-        }
-
-        const response = await fetch(`http://192.168.1.15:3000/api/${endpoint}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        return response.json();
-    },
-
-    async checkAuth() {
-        const token = await tokenStorage.getToken();
-        return !!token;
+        throw new Error(errorData.message || 'Login failed');
     }
-};
+
+    // TODO 2 Convert the response body to JSON.
+    const data = await response.json();
+
+    // TODO 3 Return the resulting user and token data.
+    return data;
+}
+
+export async function getCurrentUser() {
+    const response = await authenticatedFetch(`${BASE_URL}/auth/me`, {
+        method: 'GET',
+    });
+
+    // TODO 2 Throw an Error when the response is not successful.
+    if (!response.ok) {
+        let errorData;
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            errorData = { message: 'Failed to fetch user profile' };
+        }
+        throw new Error(errorData.message || 'Failed to fetch user profile');
+    }
+
+    // TODO 3 Return the parsed JSON profile.
+    return await response.json();
+}
+
+export async function signup(username, email, password) {
+    const response = await fetch('http://192.168.1.15:3000/api/signup', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.message || 'Signup failed');
+    }
+
+    return data;
+}
